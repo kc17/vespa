@@ -14,6 +14,7 @@ public class ContainerConfig {
                         "<jdisc version='1.0'>" +
                         "  <component id='com.yahoo.test.ManualClock'/>" +
                         "  <component id='com.yahoo.vespa.curator.mock.MockCurator'/>" +
+                        "  <component id='com.yahoo.vespa.hosted.provision.testutils.ApplicationRepositoryMock'/>" +
                         "  <component id='com.yahoo.vespa.hosted.provision.testutils.OrchestratorMock'/>" +
                         "  <component id='com.yahoo.vespa.hosted.provision.testutils.MockDeployer'/>" +
                         "  <component id='com.yahoo.vespa.hosted.provision.testutils.TestHostLivenessTracker'/>" +

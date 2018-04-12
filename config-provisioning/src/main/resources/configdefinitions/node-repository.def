@@ -6,3 +6,5 @@ namespace=config.provisioning
 dockerImage string default="dummyImage"
 
 useCuratorClientCache bool default=false
+
+zoneApplicationUrlPrefix string

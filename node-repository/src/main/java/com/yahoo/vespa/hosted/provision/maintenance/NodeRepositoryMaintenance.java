@@ -8,7 +8,9 @@ import com.yahoo.config.provision.Deployer;
 import com.yahoo.config.provision.Environment;
 import com.yahoo.config.provision.HostLivenessTracker;
 import com.yahoo.config.provision.Zone;
+import com.yahoo.config.provisioning.NodeRepositoryConfig;
 import com.yahoo.jdisc.Metric;
+import com.yahoo.vespa.config.server.ApplicationRepository;
 import com.yahoo.vespa.hosted.provision.NodeRepository;
 import com.yahoo.vespa.hosted.provision.maintenance.retire.RetireIPv4OnlyNodes;
 import com.yahoo.vespa.hosted.provision.maintenance.retire.RetirementPolicy;
@@ -46,6 +48,7 @@ public class NodeRepositoryMaintenance extends AbstractComponent {
     private final NodeRebooter nodeRebooter;
     private final NodeRetirer nodeRetirer;
     private final MetricsReporter metricsReporter;
+    private final ZoneApplicationDeployer zoneApplicationDeployer;
 
     private final JobControl jobControl;
 
@@ -53,15 +56,17 @@ public class NodeRepositoryMaintenance extends AbstractComponent {
     public NodeRepositoryMaintenance(NodeRepository nodeRepository, Deployer deployer,
                                      HostLivenessTracker hostLivenessTracker, ServiceMonitor serviceMonitor, 
                                      Zone zone, Orchestrator orchestrator, Metric metric,
-                                     ConfigserverConfig configserverConfig) {
+                                     ConfigserverConfig configserverConfig, NodeRepositoryConfig nodeRepositoryConfig,
+                                     ApplicationRepository applicationRepository) {
         this(nodeRepository, deployer, hostLivenessTracker, serviceMonitor, zone, Clock.systemUTC(),
-                orchestrator, metric, configserverConfig);
+                orchestrator, metric, configserverConfig, nodeRepositoryConfig, applicationRepository);
     }
 
     public NodeRepositoryMaintenance(NodeRepository nodeRepository, Deployer deployer,
                                      HostLivenessTracker hostLivenessTracker, ServiceMonitor serviceMonitor,
                                      Zone zone, Clock clock, Orchestrator orchestrator, Metric metric,
-                                     ConfigserverConfig configserverConfig) {
+                                     ConfigserverConfig configserverConfig, NodeRepositoryConfig nodeRepositoryConfig,
+                                     ApplicationRepository applicationRepository) {
         DefaultTimes defaults = new DefaultTimes(zone.environment());
         jobControl = new JobControl(nodeRepository.database());
 
@@ -76,6 +81,7 @@ public class NodeRepositoryMaintenance extends AbstractComponent {
         provisionedExpirer = new ProvisionedExpirer(nodeRepository, clock, durationFromEnv("provisioned_expiry").orElse(defaults.provisionedExpiry), jobControl);
         nodeRebooter = new NodeRebooter(nodeRepository, clock, durationFromEnv("reboot_interval").orElse(defaults.rebootInterval), jobControl);
         metricsReporter = new MetricsReporter(nodeRepository, metric, orchestrator, serviceMonitor, durationFromEnv("metrics_interval").orElse(defaults.metricsInterval), jobControl);
+        zoneApplicationDeployer = new ZoneApplicationDeployer(applicationRepository, nodeRepository, zone, clock, durationFromEnv("zone_app_deploy_interval").orElse(defaults.zoneApplicationDeployInterval), jobControl, nodeRepositoryConfig.zoneApplicationUrlPrefix());
 
         RetirementPolicy policy = new RetirementPolicyList(new RetireIPv4OnlyNodes(zone));
         FlavorSpareChecker flavorSpareChecker = new FlavorSpareChecker(
@@ -97,6 +103,7 @@ public class NodeRepositoryMaintenance extends AbstractComponent {
         nodeRetirer.deconstruct();
         provisionedExpirer.deconstruct();
         metricsReporter.deconstruct();
+        zoneApplicationDeployer.deconstruct();
     }
 
     public JobControl jobControl() { return jobControl; }
@@ -136,6 +143,7 @@ public class NodeRepositoryMaintenance extends AbstractComponent {
         private final Duration nodeRetirerInterval;
         private final Duration metricsInterval;
         private final Duration retiredInterval;
+        private final Duration zoneApplicationDeployInterval;
 
         private final NodeFailer.ThrottlePolicy throttlePolicy;
 
@@ -148,6 +156,7 @@ public class NodeRepositoryMaintenance extends AbstractComponent {
             rebootInterval = Duration.ofDays(30);
             nodeRetirerInterval = Duration.ofMinutes(30);
             metricsInterval = Duration.ofMinutes(1);
+            zoneApplicationDeployInterval = Duration.ofMinutes(1);
             throttlePolicy = NodeFailer.ThrottlePolicy.hosted;
 
             if (environment.isTest())
